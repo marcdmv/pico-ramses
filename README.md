@@ -1,6 +1,6 @@
 # pico-ramses
 
-**Decode Honeywell / evohome RAMSES-II 868 MHz traffic with a Raspberry Pi Pico + a €2 CC1101 — no nanoCUL, no ESP32.**
+**Decode Honeywell / evohome RAMSES-II 868 MHz traffic with a Raspberry Pi Pico + a ~€1 CC1101 — no nanoCUL, no ESP32.**
 
 A from-scratch RAMSES-II receiver (and work-in-progress transmitter) for the cheapest hardware that works.
 If you have a Pico and a CC1101 in a drawer, you can sniff your Honeywell T-series / evohome heating system
