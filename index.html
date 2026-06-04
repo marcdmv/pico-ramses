@@ -1,0 +1,81 @@
+<!doctype html><html><head><meta charset="utf-8"><title>RAMSES / R4T sniffer</title>
+<style>
+  :root{--bg:#0d1117;--panel:#161b22;--line:#21262d;--fg:#c9d1d9;--mut:#6e7681;
+        --pre:#3b82f6;--b16:#f59e0b;--tail:#ef4444;--ok:#22c55e;--warn:#eab308;}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--fg);
+    font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  header{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);
+    padding:10px 16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;z-index:5}
+  h1{font-size:15px;margin:0;font-weight:600} .dot{width:9px;height:9px;border-radius:50%;
+    display:inline-block;margin-right:6px;background:var(--mut)} .dot.on{background:var(--ok)}
+  .status{color:var(--mut)} .grow{flex:1}
+  input,button{font:inherit;background:#0d1117;color:var(--fg);border:1px solid var(--line);
+    border-radius:6px;padding:6px 10px} button{cursor:pointer} button:hover{border-color:var(--mut)}
+  .tag{color:var(--b16)}
+  .legend{padding:8px 16px;color:var(--mut);border-bottom:1px solid var(--line);background:var(--panel)}
+  .legend b.pre{color:var(--pre)} .legend b.b16{color:var(--b16)} .legend b.tail{color:var(--tail)}
+  table{width:100%;border-collapse:collapse} th,td{text-align:left;padding:5px 10px;
+    border-bottom:1px solid var(--line);white-space:nowrap} th{color:var(--mut);font-weight:500;
+    position:sticky;top:53px;background:var(--bg)}
+  td.hex{font-family:inherit} .pre{color:var(--pre)} .b16{color:var(--b16);font-weight:700}
+  .tail{color:var(--tail)} .bad{color:var(--mut);font-style:italic}
+  tr.tagrow{background:#1c2128} .pill{background:#21262d;border-radius:10px;padding:1px 8px;color:var(--b16)}
+  .count{color:var(--mut)}
+</style></head><body>
+<header>
+  <h1>RAMSES / R4T sniffer</h1>
+  <span class="status"><span id="dot" class="dot"></span><span id="msg">starting…</span></span>
+  <span class="count" id="count">0 bursts</span>
+  <span class="grow"></span>
+  <label class="status">tag state: <input id="tag" placeholder="e.g. heat ON / 22.5°C" size="20"></label>
+  <button id="setbtn">set tag</button>
+  <button id="clrbtn">clear</button>
+</header>
+<div class="legend">
+  decoded RAMSES-II &nbsp; <b class="pre">verb</b> &nbsp; <b>src → dst devices</b> &nbsp;
+  <b class="b16">opcode</b> &nbsp; <b class="tail">payload</b> &nbsp; ✓=checksum OK
+</div>
+<table><thead><tr><th>#</th><th>time</th><th>tag</th><th>✓</th><th>verb</th><th>devices</th><th>opcode</th><th>payload</th></tr></thead>
+<tbody id="rows"></tbody></table>
+<script>
+let since=0, lastTag=null;
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;')}
+function render(b){
+  if(!b.ok) return `<tr><td>${b.id}</td><td>${b.t}</td><td class=tag>${esc(b.tag||'')}</td>`+
+    `<td colspan=5 class=bad>(no frame lock)</td></tr>`;
+  const ck = b.chk ? '<span style="color:var(--ok)">✓</span>' : '<span style="color:var(--warn)">·</span>';
+  const op = `<span class=b16>${b.op}</span> <span style="color:var(--mut)">${esc(b.opname)}</span>`;
+  return `<tr><td>${b.id}</td><td>${b.t}</td><td class=tag>${esc(b.tag||'')}</td>`+
+    `<td>${ck}</td><td><span class=pre>${b.verb}</span></td>`+
+    `<td class=hex>${esc(b.addrs)}</td><td>${op}</td>`+
+    `<td class="hex tail">${esc(b.payload)}</td></tr>`;
+}
+async function poll(){
+  try{
+    const r=await fetch('/api/bursts?since='+since); const d=await r.json();
+    document.getElementById('dot').className='dot'+(d.status.connected?' on':'');
+    document.getElementById('msg').textContent=d.status.msg+(d.status.port?'  ['+d.status.port+']':'');
+    document.getElementById('count').textContent=d.total+' bursts';
+    if(lastTag===null){lastTag=d.tag;document.getElementById('tag').value=d.tag||''}
+    if(d.bursts.length){
+      const rows=document.getElementById('rows');
+      // newest first: prepend
+      let html='';
+      for(const b of d.bursts) html=render(b)+html;
+      rows.insertAdjacentHTML('afterbegin',html);
+      since=d.total;
+      // cap DOM at 400 rows
+      while(rows.children.length>400) rows.removeChild(rows.lastChild);
+    }
+  }catch(e){document.getElementById('msg').textContent='server down? '+e}
+}
+document.getElementById('setbtn').onclick=async()=>{
+  const tag=document.getElementById('tag').value;
+  await fetch('/api/tag',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tag})});
+};
+document.getElementById('clrbtn').onclick=async()=>{
+  await fetch('/api/clear',{method:'POST'}); document.getElementById('rows').innerHTML=''; since=0;
+};
+document.getElementById('tag').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('setbtn').click()});
+setInterval(poll,1000); poll();
+</script></body></html>

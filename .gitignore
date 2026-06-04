@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+# captured RF data (contains real device traffic — keep private)
+*capture*.txt
+raw*.json
+txout.txt
+rxout.txt
