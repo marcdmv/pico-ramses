@@ -42,10 +42,36 @@ Full write-up: **[Reverse-engineering a Honeywell T4R with a €4 Pico + CC1101]
    `pico_stream.py` runs on the Pico and streams every 868.3 MHz burst over USB; `server.py` decodes them
    and shows a live feed of verb / source→dest devices / opcode / payload / checksum.
 
+### Use it as an evofw3 gateway (Home Assistant / ramses_rf)
+
+`evofw3_pico.py` turns the Pico into a USB-serial gateway that speaks the **exact evofw3 line protocol**, so
+it's a drop-in for [`ramses_rf`](https://github.com/zxdavb/ramses_rf) and the Home Assistant *evohome (RAMSES
+RF)* integration — no host-side decoder needed, all decode/encode runs on the Pico.
+
+```bash
+mpremote run evofw3_pico.py                 # try it
+mpremote cp evofw3_pico.py :main.py         # or install it to auto-start on power-up
+```
+
+Each received frame is printed as one evofw3 line — `<rssi> <verb> <seq> <addr0> <addr1> <addr2> <opcode> <len> <payload>`:
+
+```
+028 RQ --- 31:193108 08:171840 --:------ 3EF1 012 002A0095CAD0D4ECC72E4C55
+```
+
+To transmit, send a line in the same shape (minus the rssi field) over the serial port; the gateway builds the
+RAMSES checksum, Manchester-encodes, UART-frames and keys the radio:
+
+```
+ I --- 18:000730 --:------ 18:000730 1FC9 018 0010E07FFFFF...
+```
+
 ## What's here
 
 | file | what it does |
 |------|--------------|
+| `evofw3_pico.py` | **Pico firmware — evofw3-compatible USB-serial gateway** (RX decode + TX encode on-Pico, drop-in for ramses_rf / Home Assistant) |
+| `test_evofw3_pico.py` | offline tests for the gateway's pure logic (build/encode/decode/format round-trips) — `python3 test_evofw3_pico.py` |
 | `pico_stream.py` | **Pico firmware** — async-mode + PIO continuous burst capture, streams run-lengths over USB |
 | `server.py` | **Host** — decodes the UART-framed Manchester stream into RAMSES-II messages, serves the web UI + JSON |
 | `index.html` | live browser feed |
@@ -58,7 +84,8 @@ Full write-up: **[Reverse-engineering a Honeywell T4R with a €4 Pico + CC1101]
 ## Status
 
 - ✅ **Receive** — works, fully verified (e.g. `10E0` device-info decodes with valid checksum + the model name in ASCII).
-- 🟡 **Transmit** — the encoder round-trips; on-air confirmation is pending (a receive-only relay can't ack, so a 2nd CC1101 as witness is the clean way to verify).
+- ✅ **evofw3 gateway** (`evofw3_pico.py`) — live RX verified emitting correct evofw3 lines; drop-in for ramses_rf / Home Assistant. Offline logic tests pass (`test_evofw3_pico.py`).
+- 🟡 **Transmit** — the encoder round-trips and the radio keys; on-air confirmation is pending (a receive-only relay can't ack, so a 2nd CC1101 as witness is the clean way to verify).
 
 ## How it works (the short version)
 
